@@ -1,32 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>OBJファイルの読み込み</title>
+<title>OBJ ファイルまたは HDR ファイルの表示</title>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background-color: black;
+}
+
+canvas {
+  width: 100vw;
+  height: 100vh;
+}
+</style>
 </head>
 <body>
-<canvas id="canvas" width="500" height="500"></canvas>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/124/three.min.js"></script>
+<canvas id="canvas"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/133/three.min.js"></script>
 <script>
-var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
-var renderer = new THREE.WebGLRenderer();
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// OBJファイルを読み込む
+// OBJ ファイルを読み込む
 var loader = new THREE.OBJLoader();
-loader.load("360.obj", function (object) {
-  scene.add(object);
+loader.load("https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/suzanne.obj", function(geometry) {
+
+  // テクスチャを読み込む
+  var textureLoader = new THREE.TextureLoader();
+  var texture = textureLoader.load("https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/earth.jpg");
+
+  // メッシュを作成してシーンに追加する
+  var mesh = new THREE.Mesh(geometry, texture);
+  scene.add(mesh);
+
+  // カメラを作成してシーンに追加する
+  var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
+  camera.position.z = 500;
+  scene.add(camera);
+
+  // 光源を作成してシーンに追加する
+  var light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.x = 1000;
+  light.position.y = 1000;
+  light.position.z = 1000;
+  scene.add(light);
+
+  // レンダラーを作成してシーンに追加する
+  var renderer = new THREE.WebGLRenderer();
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // 更新関数を定義する
+  var animate = function() {
+    requestAnimationFrame(animate);
+
+    // カメラを回転させる
+    camera.rotation.x += 0.01;
+
+    // シーンをレンダリングする
+    renderer.render(scene, camera);
+  };
+
+  // 更新関数を呼び出す
+  animate();
 });
-
-// カメラを動かす
-var animate = function () {
-  requestAnimationFrame(animate);
-  camera.position.z -= 0.01;
-  renderer.render(scene, camera);
-};
-
-animate();
 </script>
 </body>
 </html>
