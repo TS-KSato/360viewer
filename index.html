@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>OBJファイルの読み込み</title>
+</head>
+<body>
+<canvas id="canvas" width="500" height="500"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/124/three.min.js"></script>
+<script>
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
+var renderer = new THREE.WebGLRenderer();
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// OBJファイルを読み込む
+var loader = new THREE.OBJLoader();
+loader.load("360.obj", function (object) {
+  scene.add(object);
+});
+
+// カメラを動かす
+var animate = function () {
+  requestAnimationFrame(animate);
+  camera.position.z -= 0.01;
+  renderer.render(scene, camera);
+};
+
+animate();
+</script>
+</body>
+</html>
