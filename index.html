@@ -19,37 +19,41 @@ canvas {
 <canvas id="canvas"></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/133/three.min.js"></script>
 <script>
-// OBJ ファイルを読み込む
+// シーンを作成します。
+var scene = new THREE.Scene();
+
+// カメラを作成します。
+var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
+camera.position.z = 500;
+scene.add(camera);
+
+// ライトを作成します。
+var light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.x = 1000;
+light.position.y = 1000;
+light.position.z = 1000;
+scene.add(light);
+
+// メッシュを作成します。
 var loader = new THREE.OBJLoader();
-loader.load("https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/suzanne.obj", function(geometry) {
+loader.load("360.obj", function(geometry) {
 
   // テクスチャを読み込む
   var textureLoader = new THREE.TextureLoader();
-  var texture = textureLoader.load("https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/earth.jpg");
+  var texture = textureLoader.load("360.hdr");
 
   // メッシュを作成してシーンに追加する
   var mesh = new THREE.Mesh(geometry, texture);
   scene.add(mesh);
+});
 
-  // カメラを作成してシーンに追加する
-  var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
-  camera.position.z = 500;
-  scene.add(camera);
+// レンダラーを作成します。
+var renderer = new THREE.WebGLRenderer();
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
 
-  // 光源を作成してシーンに追加する
-  var light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.x = 1000;
-  light.position.y = 1000;
-  light.position.z = 1000;
-  scene.add(light);
-
-  // レンダラーを作成してシーンに追加する
-  var renderer = new THREE.WebGLRenderer();
-  renderer.setSize(innerWidth, innerHeight);
-  document.body.appendChild(renderer.domElement);
-
-  // 更新関数を定義する
-  var animate = function() {
+// 更新関数を定義する
+var animate = function() {
     requestAnimationFrame(animate);
 
     // カメラを回転させる
@@ -57,11 +61,10 @@ loader.load("https://raw.githubusercontent.com/mrdoob/three.js/master/examples/m
 
     // シーンをレンダリングする
     renderer.render(scene, camera);
-  };
+};
 
-  // 更新関数を呼び出す
-  animate();
-});
+// 更新関数を呼び出す
+animate();
 </script>
 </body>
 </html>
