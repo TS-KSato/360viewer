@@ -1,70 +1,53 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>OBJ ファイルまたは HDR ファイルの表示</title>
-<style>
-body {
-  margin: 0;
-  padding: 0;
-  background-color: black;
-}
-
-canvas {
-  width: 100vw;
-  height: 100vh;
-}
-</style>
+  <title>3D空間 with HDR</title>
+  <style>
+    /* CSSスタイル */
+    body { margin: 0; }
+    canvas { display: block; }
+  </style>
 </head>
 <body>
-<canvas id="canvas"></canvas>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/133/three.min.js"></script>
-<script>
-// シーンを作成します。
-var scene = new THREE.Scene();
+  <script src="https://threejs.org/build/three.js"></script>
+  <script src="https://threejs.org/examples/js/loaders/RGBELoader.js"></script>
+  <script>
+    // JavaScriptコード
+    // レンダラーの作成
+    var renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-// カメラを作成します。
-var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
-camera.position.z = 500;
-scene.add(camera);
+    // シーンの作成
+    var scene = new THREE.Scene();
 
-// ライトを作成します。
-var light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.x = 1000;
-light.position.y = 1000;
-light.position.z = 1000;
-scene.add(light);
+    // カメラの作成
+    var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 5;
 
-// メッシュを作成します。
-var loader = new THREE.OBJLoader();
-loader.load("../360.obj", function(geometry) {
+    // HDRファイルの読み込み
+    var loader = new THREE.RGBELoader();
+    loader.setDataType(THREE.UnsignedByteType);
+    loader.load('360.hdr', function(texture) {
+      var pmremGenerator = new THREE.PMREMGenerator(renderer);
+      pmremGenerator.compileEquirectangularShader();
 
-  // テクスチャを読み込む
-  var textureLoader = new THREE.TextureLoader();
-  var texture = textureLoader.load("../360.hdr");
+      var envMap = pmremGenerator.fromEquirectangular(texture).texture;
 
-  // メッシュを作成してシーンに追加する
-  var mesh = new THREE.Mesh(geometry, texture);
-  scene.add(mesh);
-});
+      scene.environment = envMap;
 
-// レンダラーを作成します。
-var renderer = new THREE.WebGLRenderer();
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
+      texture.dispose();
+      pmremGenerator.dispose();
 
-// 更新関数を定義する
-var animate = function() {
-    requestAnimationFrame(animate);
+      // ここで3Dオブジェクトを作成するなど、シーンをカスタマイズできます
 
-    // カメラを回転させる
-    camera.rotation.x += 0.01;
-
-    // シーンをレンダリングする
-    renderer.render(scene, camera);
-};
-
-// 更新関数を呼び出す
-animate();
-</script>
+      // レンダリングの実行
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+      animate();
+    });
+  </script>
 </body>
 </html>
