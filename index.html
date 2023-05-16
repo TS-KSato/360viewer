@@ -15,10 +15,13 @@ canvas {
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="three.js"></script>
+<script src="OBJLoader.js"></script>
 </head>
 <body>
 <canvas id="canvas"></canvas>
 <script>
+var loader = new THREE.OBJLoader();
 // シーンを作成します。
 var scene = new THREE.Scene();
 
