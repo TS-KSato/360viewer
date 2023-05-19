@@ -1,73 +1,41 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-<title>360viewerTEST</title>
-<style>
-body {
-  margin: 0;
-  padding: 0;
-  background-color: black;
-}
-
-canvas {
-  width: 100vw;
-  height: 100vh;
-}
-</style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="three.js"></script>
-<script src="OBJLoader.js"></script>
+  <title>360 Viewer</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/121/three.min.js"></script>
 </head>
 <body>
-<canvas id="canvas"></canvas>
-<script>
-var loader = new THREE.OBJLoader();
-// シーンを作成します。
-var scene = new THREE.Scene();
+  <div id="container"></div>
+  <script>
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
+    var renderer = new THREE.WebGLRenderer();
+    renderer.setSize(innerWidth, innerHeight);
+    document.getElementById("container").appendChild(renderer.domElement);
 
-// カメラを作成します。
-var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
-camera.position.z = 500;
-scene.add(camera);
+    // Create a panorama texture
+    var textureLoader = new THREE.TextureLoader();
+    var panorama = textureLoader.load("360.jpg");
 
-// ライトを作成します。
-var light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.x = 1000;
-light.position.y = 1000;
-light.position.z = 1000;
-scene.add(light);
+    // Create a sphere geometry and add it to the scene
+    var geometry = new THREE.SphereBufferGeometry(1000, 60, 40);
+    var material = new THREE.MeshBasicMaterial({
+      map: panorama
+    });
+    var sphere = new THREE.Mesh(geometry, material);
+    scene.add(sphere);
 
-// メッシュを作成します。
-var loader = new THREE.OBJLoader();
-loader.load("360.obj", function(geometry) {
+    // Animate the camera
+    var animate = function () {
+      requestAnimationFrame(animate);
 
-  // テクスチャを読み込む
-  var textureLoader = new THREE.TextureLoader();
-  var texture = textureLoader.load("../360.hdr");
+      camera.rotation.x += 0.01;
 
-  // メッシュを作成してシーンに追加する
-  var mesh = new THREE.Mesh(geometry, texture);
-  scene.add(mesh);
-});
-
-// レンダラーを作成します。
-var renderer = new THREE.WebGLRenderer();
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// 更新関数を定義する
-var animate = function() {
-    requestAnimationFrame(animate);
-
-    // カメラを回転させる
-    camera.rotation.x += 0.01;
-
-    // シーンをレンダリングする
-    renderer.render(scene, camera);
-};
-
-// 更新関数を呼び出す
-animate();
-</script>
+      renderer.render(scene, camera);
+    };
+    animate();
+  </script>
 </body>
 </html>
