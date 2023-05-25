@@ -1,41 +1,49 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>360 Viewer</title>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://unpkg.com/three@0.142.0/build/three.min.js"></script>
-</head>
-<body>
-  <div id="container"></div>
-  <script>
-    var scene = new THREE.Scene();
-    var camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 1, 1100);
-    var renderer = new THREE.WebGLRenderer();
-    renderer.setSize(innerWidth, innerHeight);
-    document.getElementById("container").appendChild(renderer.domElement);
+    <head>
+        <meta charset="utf-8">
+        <title>My first three.js app</title>
+        <style>
+            body { margin: 0; }
+            canvas { display: block; }
+        </style>
+    </head>
+    <body>
+        <script src="https://threejs.org/build/three.js"></script>
+        <script src="https://threejs.org/examples/jsm/loaders/RGBELoader.js"></script>
+        <script src="https://threejs.org/examples/jsm/pmrem/PMREMGenerator.js"></script>
+        <script src="https://threejs.org/examples/jsm/pmrem/PMREMGenerator.js"></script>
+        <script>
+            var scene, camera, renderer, loader, hdrTexture, pmremGenerator;
 
-    // Create a panorama texture
-    var textureLoader = new THREE.TextureLoader();
-    var panorama = textureLoader.load("360.jpg");
+            // Scene
+            scene = new THREE.Scene();
 
-    // Create a sphere geometry and add it to the scene
-    var geometry = new THREE.SphereBufferGeometry(1000, 60, 40);
-    var material = new THREE.MeshBasicMaterial({
-      map: panorama
-    });
-    var sphere = new THREE.Mesh(geometry, material);
-    scene.add(sphere);
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
 
-    // Animate the camera
-    var animate = function () {
-      requestAnimationFrame(animate);
+            // Renderer
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
 
-      camera.rotation.x += 0.01;
+            // Loader for hdrTexture
+            loader = new THREE.RGBELoader();
+            pmremGenerator = new THREE.PMREMGenerator(renderer);
+            hdrTexture = loader.load( '/360.hdr', function ( texture ) {
+                const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+                scene.environment = envMap;
+                texture.dispose();
+                pmremGenerator.dispose();
+            });
 
-      renderer.render(scene, camera);
-    };
-    animate();
-  </script>
-</body>
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
+        </script>
+    </body>
 </html>
