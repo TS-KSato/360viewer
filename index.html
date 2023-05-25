@@ -31,7 +31,7 @@
             // Loader for hdrTexture
             loader = new THREE.RGBELoader();
             pmremGenerator = new THREE.PMREMGenerator(renderer);
-            hdrTexture = loader.load( '../360.hdr', function ( texture ) {
+            hdrTexture = loader.load( '/360.hdr', function ( texture ) {
                 const envMap = pmremGenerator.fromEquirectangular(texture).texture;
                 scene.environment = envMap;
                 texture.dispose();
