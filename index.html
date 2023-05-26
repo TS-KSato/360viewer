@@ -1,47 +1,69 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="utf-8">
-        <title>360viewer</title>
-        <style>
-            body { margin: 0; }
-            canvas { display: block; }
-        </style>
-    </head>
-    <body>
-        <script src="https://cdn.jsdelivr.net/npm/three/build/three.min.js"></script>
-        <script type="module" src="/360viewer/RGBELoader.js"></script>
-        <script>
-            var scene, camera, renderer, loader, hdrTexture, pmremGenerator;
+  <head>
+    <title>360Viewer</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="three.js"></script>
+    <script src="OrbitControls.js"></script>
+    <script>
+      // 画像のURLを指定します
+      var panoramaImageURL = '360.jpg';
 
-            // Scene
-            scene = new THREE.Scene();
+      // レンダラーを作成します
+      var renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-            // Camera
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.z = 5;
+      // シーンを作成します
+      var scene = new THREE.Scene();
 
-            // Renderer
-            renderer = new THREE.WebGLRenderer();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
+      // カメラを作成します
+      var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
 
-            // Loader for hdrTexture
-            loader = new THREE.RGBELoader();
-            pmremGenerator = new THREE.PMREMGenerator(renderer);
-            hdrTexture = loader.load( '/360viewer/360.hdr', function ( texture ) {
-                const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-                scene.environment = envMap;
-                texture.dispose();
-                pmremGenerator.dispose();
-            });
+      // カメラの制御を追加します
+      var controls = new THREE.OrbitControls(camera, renderer.domElement);
 
-            // Animation loop
-            function animate() {
-                requestAnimationFrame(animate);
-                renderer.render(scene, camera);
-            }
-            animate();
-        </script>
-    </body>
+      // パノラマ画像の球体を作成します
+      var geometry = new THREE.SphereGeometry(500, 60, 40);
+      geometry.scale(-1, 1, 1); // 画像が内側に表示されるようにスケールを調整します
+
+      // パノラマ画像のマテリアルを作成します
+      var textureLoader = new THREE.TextureLoader();
+      var texture = textureLoader.load(panoramaImageURL);
+      var material = new THREE.MeshBasicMaterial({ map: texture });
+
+      // 球体にマテリアルを設定します
+      var mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+
+      // レンダリングループを作成します
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      // ウィンドウのリサイズ時にカメラとレンダラーのサイズを更新します
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      window.addEventListener('resize', onWindowResize, false);
+
+      // レンダリングを開始します
+      animate();
+    </script>
+  </body>
 </html>
