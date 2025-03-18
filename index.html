@@ -77,6 +77,11 @@
             z-index: 5;
         }
         
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        
         .controls {
             position: absolute;
             bottom: 1rem;
@@ -216,6 +221,10 @@
                 // 値を範囲内に制限する関数
                 clamp: function(value, min, max) {
                     return Math.min(Math.max(value, min), max);
+                },
+                // 値を周期的にマップする関数（360度円周上で）
+                cyclic: function(value, total) {
+                    return ((value % total) + total) % total;
                 }
             };
             
@@ -242,6 +251,8 @@
             let ctx = null;
             let imgWidth = 0;
             let imgHeight = 0;
+            let animationFrameId = null;
+            let pixelRatio = window.devicePixelRatio || 1;
             
             // タッチ操作の状態変数
             let touchStartTime = 0;
@@ -259,6 +270,7 @@
                 updateStatus('画像を読み込んでいます...');
                 
                 panoramaImg = new Image();
+                panoramaImg.crossOrigin = "Anonymous"; // CORS対応
                 
                 panoramaImg.onload = function() {
                     imgWidth = panoramaImg.width;
@@ -274,7 +286,8 @@
                     updateStatus('パノラマ画像が読み込まれました。画面をドラッグして見回せます。');
                 };
                 
-                panoramaImg.onerror = function() {
+                panoramaImg.onerror = function(e) {
+                    console.error('画像の読み込みに失敗しました', e);
                     updateStatus('画像の読み込みに失敗しました。');
                     container.classList.remove('loading');
                 };
@@ -285,9 +298,26 @@
             // キャンバスのセットアップ
             function setupCanvas() {
                 canvas = document.createElement('canvas');
-                canvas.width = container.clientWidth;
-                canvas.height = container.clientHeight;
-                ctx = canvas.getContext('2d');
+                pixelRatio = window.devicePixelRatio || 1;
+                
+                // デバイスピクセル比を考慮した高解像度キャンバス
+                const logicalWidth = container.clientWidth;
+                const logicalHeight = container.clientHeight;
+                const physicalWidth = Math.floor(logicalWidth * pixelRatio);
+                const physicalHeight = Math.floor(logicalHeight * pixelRatio);
+                
+                canvas.width = physicalWidth;
+                canvas.height = physicalHeight;
+                canvas.style.width = logicalWidth + 'px';
+                canvas.style.height = logicalHeight + 'px';
+                
+                ctx = canvas.getContext('2d', { alpha: false });
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                
+                // デバイスピクセル比に合わせてスケーリング
+                ctx.scale(pixelRatio, pixelRatio);
+                
                 container.appendChild(canvas);
                 
                 // イベントリスナーを設定
@@ -305,7 +335,7 @@
                         handlePinchStart(e);
                         e.preventDefault();
                     }
-                });
+                }, { passive: false });
                 
                 canvas.addEventListener('touchmove', function(e) {
                     touchMoved = true;
@@ -314,7 +344,7 @@
                         handlePinchMove(e);
                         e.preventDefault();
                     }
-                });
+                }, { passive: false });
                 
                 canvas.addEventListener('touchend', function(e) {
                     const touchDuration = Date.now() - touchStartTime;
@@ -324,6 +354,32 @@
                         // クリックイベントは発生させない（ここでは何もしない）
                     }
                 });
+                
+                // ウィンドウリサイズ対応
+                window.addEventListener('resize', handleResize);
+            }
+            
+            // リサイズハンドラー
+            function handleResize() {
+                if (!canvas) return;
+                
+                pixelRatio = window.devicePixelRatio || 1;
+                
+                const logicalWidth = container.clientWidth;
+                const logicalHeight = container.clientHeight;
+                const physicalWidth = Math.floor(logicalWidth * pixelRatio);
+                const physicalHeight = Math.floor(logicalHeight * pixelRatio);
+                
+                canvas.width = physicalWidth;
+                canvas.height = physicalHeight;
+                canvas.style.width = logicalWidth + 'px';
+                canvas.style.height = logicalHeight + 'px';
+                
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.scale(pixelRatio, pixelRatio);
+                
+                updateView();
             }
             
             // ピンチジェスチャー開始
@@ -399,76 +455,142 @@
                 event.preventDefault();
             }
             
-            // ビューの更新
+            // ビューの更新 - requestAnimationFrameを使用
             function updateView() {
+                if (!panoramaImg || !ctx) return;
+                
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                
+                animationFrameId = requestAnimationFrame(renderFrame);
+            }
+            
+            // 実際の描画処理
+            function renderFrame() {
                 if (!panoramaImg || !ctx) return;
                 
                 // 角度をラジアンに変換
                 theta = MathUtils.degToRad(90 - lat);
                 phi = MathUtils.degToRad(lon);
                 
+                // 視野角の計算
                 const fov = 75 / scale;
                 const fovRad = MathUtils.degToRad(fov);
                 
                 // キャンバスをクリア
                 ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillRect(0, 0, canvas.width / pixelRatio, canvas.height / pixelRatio);
                 
-                // 表示する画像領域を計算
-                const aspectRatio = canvas.width / canvas.height;
+                // キャンバスのアスペクト比
+                const aspectRatio = (canvas.width / pixelRatio) / (canvas.height / pixelRatio);
+                
+                // 視野角に基づく表示範囲の計算
                 const verticalFov = fov / aspectRatio;
                 
-                // 水平方向の視野角範囲
-                const horizontalRange = MathUtils.degToRad(fov);
-                // 垂直方向の視野角範囲
-                const verticalRange = MathUtils.degToRad(verticalFov);
+                // シームレスな描画のための計算
+                // 1. 基本情報の計算
+                const phiNormalized = MathUtils.cyclic(phi, 2 * Math.PI);
+                const viewCenterX = (phiNormalized / (2 * Math.PI)) * imgWidth;
                 
-                // 表示領域の計算
-                const srcWidth = horizontalRange / (2 * Math.PI) * imgWidth;
-                const srcHeight = verticalRange / Math.PI * imgHeight;
+                // 2. 表示する画像の幅と高さを計算
+                const hFovRatio = fovRad / (2 * Math.PI);
+                const vFovRatio = MathUtils.degToRad(verticalFov) / Math.PI;
                 
-                // 中心点の計算 - 適切な周期性を持たせる
-                let srcX = (phi / (2 * Math.PI)) * imgWidth + imgWidth / 2 - srcWidth / 2;
-                let srcY = (theta / Math.PI) * imgHeight - srcHeight / 2;
+                const srcWidth = Math.min(imgWidth, Math.ceil(imgWidth * hFovRatio));
+                const srcHeight = Math.min(imgHeight, Math.ceil(imgHeight * vFovRatio));
                 
-                // 水平方向のループ処理を改善
-                srcX = ((srcX % imgWidth) + imgWidth) % imgWidth;
+                // 3. 中央位置を計算
+                const srcCenterX = viewCenterX;
+                const srcCenterY = (theta / Math.PI) * imgHeight;
                 
-                // 垂直方向の範囲制限
-                srcY = MathUtils.clamp(srcY, 0, imgHeight - srcHeight);
+                // 4. 開始位置を計算
+                const srcX = Math.floor(srcCenterX - srcWidth / 2);
+                const srcY = Math.floor(srcCenterY - srcHeight / 2);
                 
-                // パノラマ画像の一部をキャンバスに描画
+                // 5. 安全な垂直範囲を確保
+                const safeY = MathUtils.clamp(srcY, 0, imgHeight - srcHeight);
+                
                 try {
-                    // メイン部分の描画
-                    ctx.drawImage(
-                        panoramaImg,
-                        srcX,
-                        srcY,
-                        srcWidth,
-                        srcHeight,
-                        0,
-                        0,
-                        canvas.width,
-                        canvas.height
-                    );
-                    
-                    // 水平方向の境界をまたぐ場合の処理
-                    if (srcX + srcWidth > imgWidth) {
-                        const overflowWidth = srcX + srcWidth - imgWidth;
-                        const mainWidth = srcWidth - overflowWidth;
-                        const overflowRatio = overflowWidth / srcWidth;
-                        
+                    // パノラマのメイン部分を描画
+                    if (srcX >= 0 && srcX + srcWidth <= imgWidth) {
+                        // 画像が境界をまたがない場合
                         ctx.drawImage(
                             panoramaImg,
-                            0,
-                            srcY,
-                            overflowWidth,
+                            srcX,
+                            safeY,
+                            srcWidth,
                             srcHeight,
-                            canvas.width * (1 - overflowRatio),
                             0,
-                            canvas.width * overflowRatio,
-                            canvas.height
+                            0,
+                            canvas.width / pixelRatio,
+                            canvas.height / pixelRatio
                         );
+                    } else {
+                        // 画像が境界をまたぐ場合
+                        
+                        // 左側部分（画像の右端）
+                        if (srcX < 0) {
+                            const wrapWidth = -srcX;
+                            const rightPortionWidth = imgWidth - (imgWidth - wrapWidth);
+                            const rightPortionScreenWidth = (rightPortionWidth / srcWidth) * (canvas.width / pixelRatio);
+                            
+                            ctx.drawImage(
+                                panoramaImg,
+                                imgWidth - rightPortionWidth,
+                                safeY,
+                                rightPortionWidth,
+                                srcHeight,
+                                0,
+                                0,
+                                rightPortionScreenWidth,
+                                canvas.height / pixelRatio
+                            );
+                            
+                            // 右側部分（画像の左端）
+                            ctx.drawImage(
+                                panoramaImg,
+                                0,
+                                safeY,
+                                srcWidth - wrapWidth,
+                                srcHeight,
+                                rightPortionScreenWidth,
+                                0,
+                                (canvas.width / pixelRatio) - rightPortionScreenWidth,
+                                canvas.height / pixelRatio
+                            );
+                        } else {
+                            // 左側部分（画像の左端から表示可能な部分まで）
+                            const leftVisibleWidth = imgWidth - srcX;
+                            const leftScreenWidth = (leftVisibleWidth / srcWidth) * (canvas.width / pixelRatio);
+                            
+                            ctx.drawImage(
+                                panoramaImg,
+                                srcX,
+                                safeY,
+                                leftVisibleWidth,
+                                srcHeight,
+                                0,
+                                0,
+                                leftScreenWidth,
+                                canvas.height / pixelRatio
+                            );
+                            
+                            // 右側部分（画像をはみ出した部分、すなわち画像の左端から）
+                            const rightWidth = srcWidth - leftVisibleWidth;
+                            
+                            ctx.drawImage(
+                                panoramaImg,
+                                0,
+                                safeY,
+                                rightWidth,
+                                srcHeight,
+                                leftScreenWidth,
+                                0,
+                                (canvas.width / pixelRatio) - leftScreenWidth,
+                                canvas.height / pixelRatio
+                            );
+                        }
                     }
                 } catch (e) {
                     console.error('描画エラー:', e);
@@ -480,13 +602,13 @@
             controlButtons.forEach(button => {
                 // タッチ操作用のイベント追加
                 button.addEventListener('touchstart', function(e) {
-                    e.preventDefault(); // デフォルト動作を抑制
-                }, { passive: false });
+                    e.stopPropagation();
+                }, { passive: true });
                 
                 button.addEventListener('touchend', function(e) {
-                    e.preventDefault(); // デフォルト動作を抑制
+                    e.stopPropagation();
                     this.click(); // クリックイベントを発火
-                }, { passive: false });
+                }, { passive: true });
             });
             
             // ズームボタン
@@ -528,17 +650,12 @@
             document.addEventListener('fullscreenchange', function() {
                 if (document.fullscreenElement) {
                     updateStatus('フルスクリーンモードになりました');
+                    // フルスクリーン時にリサイズ処理
+                    setTimeout(handleResize, 100);
                 } else {
                     updateStatus('フルスクリーンモードを終了しました');
-                }
-            });
-            
-            // ウィンドウリサイズ対応
-            window.addEventListener('resize', function() {
-                if (canvas) {
-                    canvas.width = container.clientWidth;
-                    canvas.height = container.clientHeight;
-                    updateView();
+                    // フルスクリーン解除時にリサイズ処理
+                    setTimeout(handleResize, 100);
                 }
             });
             
