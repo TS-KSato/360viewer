@@ -201,6 +201,16 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // 数学ユーティリティ関数
+            const MathUtils = {
+                degToRad: function(degrees) {
+                    return degrees * Math.PI / 180;
+                },
+                radToDeg: function(radians) {
+                    return radians * 180 / Math.PI;
+                }
+            };
+            
             // 変数の初期化
             const container = document.getElementById('panorama-container');
             const statusAnnouncer = document.getElementById('status-announcer');
@@ -352,11 +362,11 @@
                 if (!panoramaImg || !ctx) return;
                 
                 // 角度をラジアンに変換
-                theta = THREE.MathUtils.degToRad(90 - lat);
-                phi = THREE.MathUtils.degToRad(lon);
+                theta = MathUtils.degToRad(90 - lat);
+                phi = MathUtils.degToRad(lon);
                 
                 const fov = 75 / scale;
-                const fovRad = THREE.MathUtils.degToRad(fov);
+                const fovRad = MathUtils.degToRad(fov);
                 
                 // エクイレクタングラー投影の計算
                 const centerX = imgWidth / 2;
@@ -371,9 +381,9 @@
                 const verticalFov = fov / aspectRatio;
                 
                 // 水平方向の視野角範囲
-                const horizontalRange = THREE.MathUtils.degToRad(fov);
+                const horizontalRange = MathUtils.degToRad(fov);
                 // 垂直方向の視野角範囲
-                const verticalRange = THREE.MathUtils.degToRad(verticalFov);
+                const verticalRange = MathUtils.degToRad(verticalFov);
                 
                 // 表示領域の計算
                 const srcWidth = horizontalRange / (2 * Math.PI) * imgWidth;
@@ -477,18 +487,6 @@
             function updateStatus(message) {
                 statusAnnouncer.textContent = message;
             }
-            
-            // THREE.MathUtilsの単純な実装（THREE.jsを使わないため）
-            const THREE = {
-                MathUtils: {
-                    degToRad: function(degrees) {
-                        return degrees * Math.PI / 180;
-                    },
-                    radToDeg: function(radians) {
-                        return radians * 180 / Math.PI;
-                    }
-                }
-            };
         });
     </script>
 </body>
