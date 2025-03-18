@@ -29,6 +29,8 @@
             width: 100vw;
             display: flex;
             flex-direction: column;
+            -webkit-text-size-adjust: 100%;
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
         }
         
         header {
@@ -90,14 +92,15 @@
             background-color: rgba(255, 255, 255, 0.7);
             border: none;
             border-radius: 50%;
-            width: 3rem;
-            height: 3rem;
+            width: 3.5rem;
+            height: 3.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: background-color 0.2s;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            touch-action: manipulation;
         }
         
         button:hover, button:focus {
@@ -111,9 +114,10 @@
         }
         
         button svg {
-            width: 1.5rem;
-            height: 1.5rem;
+            width: 1.8rem;
+            height: 1.8rem;
             fill: #333;
+            pointer-events: none;
         }
         
         .visually-hidden {
@@ -208,6 +212,10 @@
                 },
                 radToDeg: function(radians) {
                     return radians * 180 / Math.PI;
+                },
+                // 値を範囲内に制限する関数
+                clamp: function(value, min, max) {
+                    return Math.min(Math.max(value, min), max);
                 }
             };
             
@@ -234,6 +242,10 @@
             let ctx = null;
             let imgWidth = 0;
             let imgHeight = 0;
+            
+            // タッチ操作の状態変数
+            let touchStartTime = 0;
+            let touchMoved = false;
             
             // パノラマ画像のパスを設定 (実際の画像パスに変更してください)
             const panoramaImagePath = '360.jpg';
@@ -280,39 +292,66 @@
                 
                 // イベントリスナーを設定
                 canvas.addEventListener('pointerdown', onPointerDown);
-                canvas.addEventListener('pointermove', onPointerMove);
-                canvas.addEventListener('pointerup', onPointerUp);
+                document.addEventListener('pointermove', onPointerMove);
+                document.addEventListener('pointerup', onPointerUp);
                 canvas.addEventListener('wheel', onWheel);
                 
-                // タッチのピンチズーム対応
-                let initialDistance = 0;
-                let initialScale = 1;
-                
+                // モバイル向けのタッチイベント
                 canvas.addEventListener('touchstart', function(e) {
+                    touchStartTime = Date.now();
+                    touchMoved = false;
+                    
                     if (e.touches.length === 2) {
-                        initialDistance = Math.hypot(
-                            e.touches[0].pageX - e.touches[1].pageX,
-                            e.touches[0].pageY - e.touches[1].pageY
-                        );
-                        initialScale = scale;
+                        handlePinchStart(e);
                         e.preventDefault();
                     }
                 });
                 
                 canvas.addEventListener('touchmove', function(e) {
+                    touchMoved = true;
+                    
                     if (e.touches.length === 2) {
-                        const currentDistance = Math.hypot(
-                            e.touches[0].pageX - e.touches[1].pageX,
-                            e.touches[0].pageY - e.touches[1].pageY
-                        );
-                        
-                        scale = initialScale * (currentDistance / initialDistance);
-                        scale = Math.min(Math.max(scale, 0.5), 3);
-                        
-                        updateView();
+                        handlePinchMove(e);
                         e.preventDefault();
                     }
                 });
+                
+                canvas.addEventListener('touchend', function(e) {
+                    const touchDuration = Date.now() - touchStartTime;
+                    
+                    // 短いタップで移動していなければクリックとして扱う
+                    if (!touchMoved && touchDuration < 300) {
+                        // クリックイベントは発生させない（ここでは何もしない）
+                    }
+                });
+            }
+            
+            // ピンチジェスチャー開始
+            let initialDistance = 0;
+            let initialScale = 1;
+            
+            function handlePinchStart(e) {
+                if (e.touches.length !== 2) return;
+                
+                initialDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                initialScale = scale;
+            }
+            
+            function handlePinchMove(e) {
+                if (e.touches.length !== 2) return;
+                
+                const currentDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                
+                scale = initialScale * (currentDistance / initialDistance);
+                scale = MathUtils.clamp(scale, 0.5, 3);
+                
+                updateView();
             }
             
             // ポインター操作イベント
@@ -327,7 +366,10 @@
                 onPointerDownLon = lon;
                 onPointerDownLat = lat;
                 
-                event.preventDefault();
+                // ポインターがキャンバス上にある場合のみデフォルト動作を抑制
+                if (event.target === canvas) {
+                    event.preventDefault();
+                }
             }
             
             function onPointerMove(event) {
@@ -336,7 +378,7 @@
                     lat = (event.clientY - onPointerDownPointerY) * 0.1 + onPointerDownLat;
                     
                     // 垂直方向の制限
-                    lat = Math.max(-85, Math.min(85, lat));
+                    lat = MathUtils.clamp(lat, -85, 85);
                     
                     updateView();
                 }
@@ -351,7 +393,7 @@
             function onWheel(event) {
                 const delta = event.deltaY < 0 ? 1.1 : 0.9;
                 scale *= delta;
-                scale = Math.min(Math.max(scale, 0.5), 3);
+                scale = MathUtils.clamp(scale, 0.5, 3);
                 
                 updateView();
                 event.preventDefault();
@@ -367,10 +409,6 @@
                 
                 const fov = 75 / scale;
                 const fovRad = MathUtils.degToRad(fov);
-                
-                // エクイレクタングラー投影の計算
-                const centerX = imgWidth / 2;
-                const centerY = imgHeight / 2;
                 
                 // キャンバスをクリア
                 ctx.fillStyle = '#000';
@@ -389,39 +427,46 @@
                 const srcWidth = horizontalRange / (2 * Math.PI) * imgWidth;
                 const srcHeight = verticalRange / Math.PI * imgHeight;
                 
-                // 中心点の計算
-                const srcX = (phi / (2 * Math.PI)) * imgWidth + imgWidth / 2 - srcWidth / 2;
-                const srcY = (theta / Math.PI) * imgHeight - srcHeight / 2;
+                // 中心点の計算 - 適切な周期性を持たせる
+                let srcX = (phi / (2 * Math.PI)) * imgWidth + imgWidth / 2 - srcWidth / 2;
+                let srcY = (theta / Math.PI) * imgHeight - srcHeight / 2;
+                
+                // 水平方向のループ処理を改善
+                srcX = ((srcX % imgWidth) + imgWidth) % imgWidth;
+                
+                // 垂直方向の範囲制限
+                srcY = MathUtils.clamp(srcY, 0, imgHeight - srcHeight);
                 
                 // パノラマ画像の一部をキャンバスに描画
                 try {
+                    // メイン部分の描画
                     ctx.drawImage(
                         panoramaImg,
-                        srcX % imgWidth,
-                        Math.max(0, Math.min(imgHeight - srcHeight, srcY)),
+                        srcX,
+                        srcY,
                         srcWidth,
-                        Math.min(imgHeight, srcHeight),
+                        srcHeight,
                         0,
                         0,
                         canvas.width,
                         canvas.height
                     );
                     
-                    // 画像の境界がある場合、反対側からも描画
-                    if (srcX < 0 || srcX + srcWidth > imgWidth) {
-                        const wrapX = srcX < 0 ? imgWidth + srcX : srcX - imgWidth;
-                        const wrapWidth = Math.min(srcWidth, imgWidth - Math.abs(wrapX));
-                        const destX = srcX < 0 ? canvas.width - wrapWidth * (canvas.width / srcWidth) : 0;
+                    // 水平方向の境界をまたぐ場合の処理
+                    if (srcX + srcWidth > imgWidth) {
+                        const overflowWidth = srcX + srcWidth - imgWidth;
+                        const mainWidth = srcWidth - overflowWidth;
+                        const overflowRatio = overflowWidth / srcWidth;
                         
                         ctx.drawImage(
                             panoramaImg,
-                            wrapX,
-                            Math.max(0, Math.min(imgHeight - srcHeight, srcY)),
-                            wrapWidth,
-                            Math.min(imgHeight, srcHeight),
-                            destX,
                             0,
-                            wrapWidth * (canvas.width / srcWidth),
+                            srcY,
+                            overflowWidth,
+                            srcHeight,
+                            canvas.width * (1 - overflowRatio),
+                            0,
+                            canvas.width * overflowRatio,
                             canvas.height
                         );
                     }
@@ -430,17 +475,31 @@
                 }
             }
             
+            // ボタンのタッチイベント強化
+            const controlButtons = document.querySelectorAll('.controls button');
+            controlButtons.forEach(button => {
+                // タッチ操作用のイベント追加
+                button.addEventListener('touchstart', function(e) {
+                    e.preventDefault(); // デフォルト動作を抑制
+                }, { passive: false });
+                
+                button.addEventListener('touchend', function(e) {
+                    e.preventDefault(); // デフォルト動作を抑制
+                    this.click(); // クリックイベントを発火
+                }, { passive: false });
+            });
+            
             // ズームボタン
             zoomInButton.addEventListener('click', function() {
                 scale *= 1.2;
-                scale = Math.min(scale, 3);
+                scale = MathUtils.clamp(scale, 0.5, 3);
                 updateView();
                 updateStatus('ズームイン');
             });
             
             zoomOutButton.addEventListener('click', function() {
                 scale *= 0.8;
-                scale = Math.max(scale, 0.5);
+                scale = MathUtils.clamp(scale, 0.5, 3);
                 updateView();
                 updateStatus('ズームアウト');
             });
